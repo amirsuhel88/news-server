@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
-import UserModel from "../models/UserModel.js";
+import User from "../models/UserModel.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
@@ -13,7 +13,7 @@ const JWT_SECRET = process.env.JWT_SECRET;
 // generate access and refresh token
 const generateAccessTokenAndRefreshToken = async (userId) => {
   try {
-    const user = await UserModel.findById(userId);
+    const user = await User.findById(userId);
 
     const accessToken = user.generateAccessToken();
     const refreshToken = user.generateRefreshToken();
@@ -34,7 +34,7 @@ const generateAccessTokenAndRefreshToken = async (userId) => {
 export const signup = asyncHandler(async (req, res) => {
   const { username, email, password } = req.body;
 
-  const existedUser = await UserModel.findOne({
+  const existedUser = await User.findOne({
     $or: [{ email }, { username }],
   });
 
@@ -43,14 +43,14 @@ export const signup = asyncHandler(async (req, res) => {
   }
 
   // Create a new user in the database
-  const user = await UserModel.create({
+  const user = await User.create({
     username,
     email,
     password,
   });
 
   // Remove sensitive information from the response
-  const createdUser = await UserModel.findById(user._id).select(
+  const createdUser = await User.findById(user._id).select(
     "-password -refreshToken"
   );
 
@@ -84,7 +84,7 @@ export const login = asyncHandler(async (req, res) => {
   }
 
   //find the user
-  const user = await UserModel.findOne({
+  const user = await User.findOne({
     $or: [{ email }],
   });
 
@@ -104,7 +104,7 @@ export const login = asyncHandler(async (req, res) => {
     await generateAccessTokenAndRefreshToken(user._id);
 
   //send cookies
-  const loggedInUser = await UserModel.findById(user._id).select(
+  const loggedInUser = await User.findById(user._id).select(
     "-password -refreshToken"
   );
 
@@ -145,7 +145,7 @@ export const refreshAccessToken = asyncHandler(async (req, res) => {
       process.env.REFRESH_TOKEN_SECTET
     );
 
-    const user = await UserModel.findById(decodedToken?._id);
+    const user = await User.findById(decodedToken?._id);
     // console.log("User", user);
 
     if (!user) {
@@ -183,7 +183,7 @@ export const refreshAccessToken = asyncHandler(async (req, res) => {
 
 // logout
 export const logoutUser = asyncHandler(async (req, res) => {
-  await UserModel.findByIdAndUpdate(
+  await User.findByIdAndUpdate(
     req.user._id,
     {
       $unset: {
@@ -203,4 +203,16 @@ export const logoutUser = asyncHandler(async (req, res) => {
     .clearCookie("accessToken", options)
     .clearCookie("refreshToken", options)
     .json(new ApiResponse(200, {}, "User Logged out Successfully"));
+});
+
+// user details
+export const getUserDetails = asyncHandler(async (req, res) => {
+  const user = req.user; // User is already attached by the middleware
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, user, "User details fetched successfully"));
 });
